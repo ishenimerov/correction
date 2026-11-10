@@ -1,0 +1,15 @@
+# Translation data stays out of the repo
+*.xlsx
+*.xls
+*.json
+!package.json
+!vercel.json
+
+# Env and tooling
+.env
+.env.*
+.vercel/
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db

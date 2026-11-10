@@ -1,0 +1,588 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Translation Corrections</title>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+<style>
+  :root {
+    --bg: #f6f7f9; --surface: #ffffff; --surface-2: #f1f3f6; --border: #dde1e7;
+    --text: #1c2330; --muted: #5f6b7a; --accent: #2563eb; --accent-text: #ffffff;
+    --update: #b45309; --update-bg: #fef3c7; --add: #047857; --add-bg: #d1fae5;
+    --same: #64748b; --same-bg: #e2e8f0; --missing: #b91c1c; --missing-bg: #fee2e2;
+    --old: #9aa4b2; --focus: #93b4f5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1318; --surface: #171c23; --surface-2: #1e252e; --border: #2b3440;
+      --text: #e6eaf0; --muted: #98a3b3; --accent: #4f8cff; --accent-text: #0b1220;
+      --update: #fbbf24; --update-bg: #3a2c0b; --add: #34d399; --add-bg: #0d3326;
+      --same: #94a3b8; --same-bg: #252d38; --missing: #f87171; --missing-bg: #3b1515;
+      --old: #6b7686; --focus: #3d6fd6;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1318; --surface: #171c23; --surface-2: #1e252e; --border: #2b3440;
+    --text: #e6eaf0; --muted: #98a3b3; --accent: #4f8cff; --accent-text: #0b1220;
+    --update: #fbbf24; --update-bg: #3a2c0b; --add: #34d399; --add-bg: #0d3326;
+    --same: #94a3b8; --same-bg: #252d38; --missing: #f87171; --missing-bg: #3b1515;
+    --old: #6b7686; --focus: #3d6fd6;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 1100px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .lead { color: var(--muted); margin: 0 0 28px; }
+  section.card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px; margin-bottom: 16px;
+  }
+  section.card[aria-disabled="true"] { opacity: .5; pointer-events: none; }
+  .step-title { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; font-size: 15px; }
+  .step-num {
+    width: 24px; height: 24px; border-radius: 50%; background: var(--surface-2);
+    border: 1px solid var(--border); display: grid; place-items: center; font-size: 12px; font-weight: 600;
+  }
+  .step-title.done .step-num { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+
+  .drops { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .drop {
+    position: relative; border: 1.5px dashed var(--border); border-radius: 10px; padding: 18px;
+    background: var(--surface-2); cursor: pointer; min-height: 96px; transition: border-color .15s, background .15s;
+  }
+  .drop:hover, .drop.over { border-color: var(--accent); }
+  .drop:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .drop.loaded { border-style: solid; }
+  .drop.error { border-color: var(--missing); }
+  .drop input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .drop-label { font-weight: 600; }
+  .drop-hint { color: var(--muted); font-size: 13px; }
+  .drop-file { margin-top: 6px; font-size: 13px; word-break: break-all; }
+  .drop-file strong { font-weight: 600; }
+  .drop.error .drop-file { color: var(--missing); }
+
+  .settings { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  label.field { display: block; font-weight: 600; margin-bottom: 6px; }
+  .help { color: var(--muted); font-size: 12.5px; margin-top: 4px; }
+  select, input[type="text"], input[type="search"] {
+    width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px;
+    background: var(--surface); color: var(--text); font: inherit;
+  }
+  select:focus, input:focus { outline: 2px solid var(--focus); outline-offset: 1px; }
+  .colors { grid-column: 1 / -1; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px;
+    border: 1px solid var(--border); background: var(--surface); color: var(--text);
+    cursor: pointer; font: inherit; font-size: 13px;
+  }
+  .chip[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+  .chip:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .swatch { width: 14px; height: 14px; border-radius: 4px; border: 1px solid rgba(0,0,0,.25); flex: none; }
+  .chip .count { color: var(--muted); }
+  .chip .check { width: 14px; text-align: center; color: var(--accent); font-weight: 700; }
+
+  .summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+  .stat {
+    border: 1px solid var(--border); border-radius: 10px; padding: 12px; background: var(--surface);
+    text-align: left; cursor: pointer; font: inherit; color: var(--text);
+  }
+  .stat[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+  .stat:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .stat .n { font-size: 22px; font-weight: 700; }
+  .stat .l { font-size: 12.5px; color: var(--muted); }
+  .stat.update .n { color: var(--update); } .stat.add .n { color: var(--add); }
+  .stat.same .n { color: var(--same); } .stat.missing .n { color: var(--missing); }
+
+  .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+  .toolbar input[type="search"] { flex: 1 1 240px; width: auto; }
+  .link-btn { background: none; border: 0; color: var(--accent); cursor: pointer; font: inherit; padding: 4px; }
+  .link-btn:focus-visible { outline: 2px solid var(--focus); border-radius: 4px; }
+
+  .table-wrap { border: 1px solid var(--border); border-radius: 10px; overflow: auto; max-height: 520px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { position: sticky; top: 0; background: var(--surface-2); font-weight: 600; z-index: 1; }
+  tr:last-child td { border-bottom: 0; }
+  td.key { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 12px; word-break: break-all; width: 26%; }
+  td.val { width: 32%; white-space: pre-wrap; word-break: break-word; }
+  td.val.old { color: var(--old); }
+  td.val.old.changed { text-decoration: line-through; }
+  td.cb { width: 36px; }
+  tr.excluded td.val:not(.old) { color: var(--old); }
+  .badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+  .badge.update { color: var(--update); background: var(--update-bg); }
+  .badge.add { color: var(--add); background: var(--add-bg); }
+  .badge.same { color: var(--same); background: var(--same-bg); }
+  .badge.missing { color: var(--missing); background: var(--missing-bg); }
+  .empty { padding: 28px; text-align: center; color: var(--muted); }
+
+  .actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 16px; }
+  .primary {
+    background: var(--accent); color: var(--accent-text); border: 0; border-radius: 8px;
+    padding: 10px 18px; font: inherit; font-weight: 600; cursor: pointer;
+  }
+  .primary:disabled { opacity: .45; cursor: not-allowed; }
+  .primary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .note { color: var(--muted); font-size: 13px; }
+  .alert { border-radius: 8px; padding: 10px 12px; margin-top: 12px; font-size: 13px; background: var(--missing-bg); color: var(--missing); }
+  .alert[hidden] { display: none; }
+
+  @media (max-width: 720px) {
+    .drops, .settings { grid-template-columns: 1fr; }
+    .summary { grid-template-columns: repeat(2, 1fr); }
+    td.key { width: auto; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Translation Corrections</h1>
+  <p class="lead">Take the highlighted cells of one language from a reviewed Excel file and write them into a translations JSON. Files stay in your browser.</p>
+
+  <!-- Step 1: files -->
+  <section class="card" id="step1">
+    <h2 class="step-title" id="t1"><span class="step-num">1</span>Upload files</h2>
+    <div class="drops">
+      <div class="drop" id="dropJson">
+        <input type="file" id="fileJson" accept=".json,application/json" aria-label="Translations JSON file">
+        <div class="drop-label">Translations JSON</div>
+        <div class="drop-hint">Drop the file here or click to choose. Format: <code>{ "key": { "en": "…", "lo": "…" } }</code></div>
+        <div class="drop-file" id="infoJson"></div>
+      </div>
+      <div class="drop" id="dropXlsx">
+        <input type="file" id="fileXlsx" accept=".xlsx" aria-label="Reviewed Excel file">
+        <div class="drop-label">Reviewed Excel (.xlsx)</div>
+        <div class="drop-hint">Row 1: <code>Key</code> plus a column per language. Corrected cells are highlighted.</div>
+        <div class="drop-file" id="infoXlsx"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Step 2: language + colour -->
+  <section class="card" id="step2" aria-disabled="true">
+    <h2 class="step-title" id="t2"><span class="step-num">2</span>Choose language and highlight</h2>
+    <div class="settings">
+      <div>
+        <label class="field" for="column">Excel column to read</label>
+        <select id="column"></select>
+        <div class="help">The reviewed language column in the Excel file.</div>
+      </div>
+      <div>
+        <label class="field" for="lang">Language code to update in the JSON</label>
+        <input type="text" id="lang" list="langList" autocomplete="off" spellcheck="false">
+        <datalist id="langList"></datalist>
+        <div class="help" id="langHelp">Filled in from the column; change it if the codes differ.</div>
+      </div>
+      <div class="colors">
+        <label class="field" id="colorsLabel">Highlight colours that mark a correction</label>
+        <div class="chips" id="chips" role="group" aria-labelledby="colorsLabel"></div>
+        <div class="help">Fill colours found in this column, with how many cells use each. Theme colours are shown approximately.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Step 3: review + download -->
+  <section class="card" id="step3" aria-disabled="true">
+    <h2 class="step-title" id="t3"><span class="step-num">3</span>Review and download</h2>
+    <div class="summary" role="group" aria-label="Filter by result">
+      <button class="stat update" data-filter="update" aria-pressed="false"><div class="n" id="nUpdate">0</div><div class="l">Will change</div></button>
+      <button class="stat add" data-filter="add" aria-pressed="false"><div class="n" id="nAdd">0</div><div class="l">Will be added (no value yet)</div></button>
+      <button class="stat same" data-filter="same" aria-pressed="false"><div class="n" id="nSame">0</div><div class="l">Already the same</div></button>
+      <button class="stat missing" data-filter="missing" aria-pressed="false"><div class="n" id="nMissing">0</div><div class="l">Key not in JSON</div></button>
+    </div>
+    <div class="toolbar">
+      <input type="search" id="search" placeholder="Search key or text…" aria-label="Search">
+      <button class="link-btn" id="selAll">Select all</button>
+      <button class="link-btn" id="selNone">Select none</button>
+      <button class="link-btn" id="clearFilter" hidden>Show all results</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th class="cb"><span class="sr" aria-hidden="true"></span></th><th>Key</th><th>Current in JSON</th><th>From Excel</th><th>Result</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <div class="actions">
+      <div class="note" id="note"></div>
+      <button class="primary" id="download" disabled>Download JSON</button>
+    </div>
+    <div class="alert" id="warn" hidden></div>
+  </section>
+</main>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+
+  // Header names json_to_excel.py writes, used when there's no "(code)" row.
+  const LANG_NAMES = {
+    en: "English", tr: "Turkish", fr: "French", ar: "Arabic", el: "Greek", ro: "Romanian",
+    ru: "Russian", uz: "Uzbek", sr_cyrl: "Serbian (Cyrillic)", sr_Latn: "Serbian (Latin)",
+    sq: "Albanian", es: "Spanish", lo: "Lao", pl: "Polish",
+  };
+  const NAME_TO_CODE = Object.fromEntries(Object.entries(LANG_NAMES).map(([c, n]) => [n, c]));
+  // Default Office theme colours (theme index → RGB), to draw a swatch for theme fills.
+  const THEME = ["FFFFFF", "000000", "E7E6E6", "44546A", "4472C4", "ED7D31", "A5A5A5", "FFC000", "5B9BD5", "70AD47"];
+  // Legacy indexed palette entries that are commonly used for highlights.
+  const INDEXED = { 5: "FFFF00", 13: "FFFF00", 43: "FFFF99", 26: "FFFFCC", 10: "FF0000", 11: "00FF00", 42: "CCFFCC" };
+  const DEFAULT_COLOR = "rgb:FFFF00";
+  // json_to_excel.py shades the whole Lao column with this colour.
+  const EXPORT_SHADING = "E2EFDA";
+
+  const state = {
+    json: null,       // { name, raw, data, bom, newline, indent, trailing }
+    sheet: null,      // { name, keyCol, firstRow, columns: [{ col, header, code }], ws }
+    column: null,     // Excel column number
+    lang: "",
+    colors: new Set([DEFAULT_COLOR]),
+    colorInfo: [],    // [{ key, hex, label, count }]
+    items: [],        // [{ key, value, status, current }]
+    excluded: new Set(),
+    filter: null,
+    search: "",
+  };
+
+  // ---------- file loading ----------
+  function setupDrop(dropId, inputId, onFile) {
+    const drop = $(dropId), input = $(inputId);
+    input.addEventListener("change", () => input.files[0] && onFile(input.files[0]));
+    ["dragenter", "dragover"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("over"); }));
+    ["dragleave", "drop"].forEach((ev) => drop.addEventListener(ev, () => drop.classList.remove("over")));
+    drop.addEventListener("drop", (e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) onFile(f); });
+  }
+
+  function showFile(dropId, infoId, html, isError) {
+    const drop = $(dropId);
+    drop.classList.toggle("loaded", !isError);
+    drop.classList.toggle("error", !!isError);
+    $(infoId).innerHTML = html;
+  }
+
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+  async function loadJson(file) {
+    try {
+      let raw = await file.text();
+      const bom = raw.charCodeAt(0) === 0xfeff;
+      if (bom) raw = raw.slice(1);
+      const data = JSON.parse(raw);
+      if (!data || typeof data !== "object" || Array.isArray(data)) throw new Error("Expected an object of keys.");
+      const indentMatch = raw.match(/^\{\r?\n([ \t]+)"/);
+      state.json = {
+        name: file.name, raw, data, bom,
+        newline: raw.includes("\r\n") ? "\r\n" : "\n",
+        indent: indentMatch ? indentMatch[1] : 2,
+        trailing: /\r?\n$/.test(raw),
+      };
+      const langs = new Set();
+      Object.values(data).forEach((v) => v && typeof v === "object" && Object.keys(v).forEach((l) => langs.add(l)));
+      $("langList").innerHTML = [...langs].map((l) => `<option value="${esc(l)}">`).join("");
+      showFile("dropJson", "infoJson", `<strong>${esc(file.name)}</strong> — ${Object.keys(data).length.toLocaleString()} keys, ${langs.size} languages`);
+    } catch (err) {
+      state.json = null;
+      showFile("dropJson", "infoJson", `${esc(file.name)}: not valid JSON (${esc(err.message)})`, true);
+    }
+    refresh();
+  }
+
+  function cellText(v) {
+    if (v == null) return "";
+    if (typeof v === "string") return v;
+    if (typeof v === "number" || typeof v === "boolean") return String(v);
+    if (v instanceof Date) return v.toISOString();
+    if (v.richText) return v.richText.map((r) => r.text).join("");
+    if (v.text != null) return typeof v.text === "string" ? v.text : cellText(v.text);
+    if (v.result != null) return cellText(v.result);
+    return String(v);
+  }
+
+  async function loadXlsx(file) {
+    try {
+      const wb = new ExcelJS.Workbook();
+      await wb.xlsx.load(await file.arrayBuffer());
+      const ws = wb.worksheets[0];
+      if (!ws) throw new Error("The workbook has no sheets.");
+      const header = ws.getRow(1), codes = ws.getRow(2);
+      let keyCol = null;
+      const columns = [];
+      let hasCodeRow = false;
+      for (let c = 1; c <= ws.columnCount; c++) {
+        const h = cellText(header.getCell(c).value).trim();
+        const code = cellText(codes.getCell(c).value).trim();
+        if (/^\(.+\)$/.test(code)) hasCodeRow = true;
+        if (h === "Key") { keyCol = c; continue; }
+        if (!h) continue;
+        const fromRow2 = /^\((.+)\)$/.exec(code);
+        columns.push({ col: c, header: h, code: fromRow2 ? fromRow2[1] : NAME_TO_CODE[h] || "" });
+      }
+      if (!keyCol) throw new Error("No 'Key' column in row 1.");
+      if (!columns.length) throw new Error("No language columns found next to 'Key'.");
+      state.sheet = { name: file.name, ws, keyCol, firstRow: hasCodeRow ? 3 : 2, columns };
+
+      const sel = $("column");
+      sel.innerHTML = columns.map((c) => `<option value="${c.col}">${esc(c.header)}${c.code ? ` (${esc(c.code)})` : ""}</option>`).join("");
+      const preferred = columns.find((c) => c.code === "lo") || columns.find((c) => c.code && c.code !== "en") || columns[0];
+      sel.value = String(preferred.col);
+      selectColumn(preferred.col, true);
+      showFile("dropXlsx", "infoXlsx", `<strong>${esc(file.name)}</strong> — sheet “${esc(ws.name)}”, ${(ws.rowCount - state.sheet.firstRow + 1).toLocaleString()} rows, ${columns.length} language columns`);
+    } catch (err) {
+      state.sheet = null;
+      showFile("dropXlsx", "infoXlsx", `${esc(file.name)}: couldn't read it (${esc(err.message)})`, true);
+    }
+    refresh();
+  }
+
+  // ---------- colours ----------
+  function applyTint(hex, tint) {
+    if (!tint) return hex;
+    const ch = [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16));
+    const out = ch.map((v) => Math.round(tint > 0 ? v + (255 - v) * tint : v * (1 + tint)));
+    return out.map((v) => v.toString(16).padStart(2, "0")).join("").toUpperCase();
+  }
+
+  function fillKey(fill) {
+    if (!fill || fill.type !== "pattern" || !fill.pattern || fill.pattern === "none") return null;
+    const fg = fill.fgColor || {};
+    if (fg.argb) {
+      const hex = fg.argb.slice(-6).toUpperCase();
+      const label = hex === EXPORT_SHADING ? "Column shading (from export, not a correction)" : hex === "FFFF00" ? "Yellow #FFFF00" : `#${hex}`;
+      return { key: `rgb:${hex}`, hex, label };
+    }
+    if (fg.theme != null) {
+      const tint = fg.tint || 0;
+      const hex = applyTint(THEME[fg.theme] || "CCCCCC", tint);
+      const pct = tint ? ` ${tint > 0 ? "lighter" : "darker"} ${Math.round(Math.abs(tint) * 100)}%` : "";
+      return { key: `theme:${fg.theme}:${tint.toFixed(3)}`, hex, label: `Theme ${fg.theme}${pct}` };
+    }
+    if (fg.indexed != null) {
+      const hex = INDEXED[fg.indexed] || "CCCCCC";
+      return { key: `indexed:${fg.indexed}`, hex, label: `Indexed ${fg.indexed}${INDEXED[fg.indexed] ? ` (#${hex})` : ""}` };
+    }
+    return null;
+  }
+
+  function selectColumn(col, resetColors) {
+    const { ws, keyCol, firstRow, columns } = state.sheet;
+    state.column = Number(col);
+    const meta = columns.find((c) => c.col === state.column);
+    $("lang").value = state.lang = meta.code || "";
+    $("langHelp").textContent = meta.code
+      ? "Filled in from the column; change it if the codes differ."
+      : "This column has no language code — type the JSON code (e.g. lo, fr).";
+
+    const counts = new Map();
+    for (let r = firstRow; r <= ws.rowCount; r++) {
+      const row = ws.getRow(r);
+      if (!cellText(row.getCell(keyCol).value).trim()) continue;
+      const cell = row.getCell(state.column);
+      const f = fillKey(cell.fill);
+      if (!f) continue;
+      const entry = counts.get(f.key) || { ...f, count: 0 };
+      entry.count++;
+      counts.set(f.key, entry);
+    }
+    state.colorInfo = [...counts.values()].sort((a, b) => b.count - a.count);
+    if (resetColors) {
+      const hasYellow = counts.has(DEFAULT_COLOR);
+      state.colors = new Set(hasYellow ? [DEFAULT_COLOR] : []);
+    } else {
+      state.colors = new Set([...state.colors].filter((k) => counts.has(k)));
+    }
+    renderChips();
+  }
+
+  function renderChips() {
+    const chips = $("chips");
+    if (!state.colorInfo.length) {
+      chips.innerHTML = `<span class="note">No highlighted cells in this column.</span>`;
+      return;
+    }
+    chips.innerHTML = "";
+    state.colorInfo.forEach((c) => {
+      const b = document.createElement("button");
+      b.className = "chip";
+      b.type = "button";
+      const on = state.colors.has(c.key);
+      b.setAttribute("aria-pressed", String(on));
+      b.innerHTML = `<span class="check">${on ? "✓" : ""}</span><span class="swatch" style="background:#${c.hex}"></span>${esc(c.label)}<span class="count">${c.count.toLocaleString()}</span>`;
+      b.addEventListener("click", () => {
+        state.colors.has(c.key) ? state.colors.delete(c.key) : state.colors.add(c.key);
+        renderChips();
+        refresh();
+      });
+      chips.appendChild(b);
+    });
+  }
+
+  // ---------- compare ----------
+  function buildItems() {
+    const { ws, keyCol, firstRow } = state.sheet;
+    const data = state.json.data, lang = state.lang;
+    const seen = new Map();
+    for (let r = firstRow; r <= ws.rowCount; r++) {
+      const row = ws.getRow(r);
+      const key = cellText(row.getCell(keyCol).value).trim();
+      if (!key) continue;
+      const cell = row.getCell(state.column);
+      const f = fillKey(cell.fill);
+      if (!f || !state.colors.has(f.key)) continue;
+      const value = cellText(cell.value);
+      if (value === "") continue;
+      const entry = data[key];
+      let status, current = "";
+      if (!entry || typeof entry !== "object") status = "missing";
+      else if (!(lang in entry)) status = "add";
+      else { current = cellText(entry[lang]); status = current === value ? "same" : "update"; }
+      seen.set(key, { key, value, status, current }); // last row wins for duplicate keys
+    }
+    // Changes first, unchanged last; keeps Excel order within each group.
+    const RANK = { update: 0, add: 1, missing: 2, same: 3 };
+    state.items = [...seen.values()].sort((a, b) => RANK[a.status] - RANK[b.status]);
+  }
+
+  function willApply(item) {
+    return (item.status === "update" || item.status === "add") && !state.excluded.has(item.key);
+  }
+
+  // ---------- render ----------
+  const LABEL = { update: "Will change", add: "Will be added", same: "Same", missing: "Not in JSON" };
+
+  function renderTable() {
+    const tbody = $("rows");
+    const q = state.search.toLowerCase();
+    const visible = state.items.filter((it) =>
+      (!state.filter || it.status === state.filter) &&
+      (!q || it.key.toLowerCase().includes(q) || it.value.toLowerCase().includes(q) || it.current.toLowerCase().includes(q)));
+    tbody.innerHTML = "";
+    if (!visible.length) {
+      tbody.innerHTML = `<tr><td colspan="5" class="empty">${state.items.length ? "No rows match the filter." : "No highlighted cells for the chosen colours."}</td></tr>`;
+      return;
+    }
+    const frag = document.createDocumentFragment();
+    visible.forEach((it) => {
+      const tr = document.createElement("tr");
+      const applicable = it.status === "update" || it.status === "add";
+      if (applicable && state.excluded.has(it.key)) tr.className = "excluded";
+
+      const cb = document.createElement("td"); cb.className = "cb";
+      if (applicable) {
+        const box = document.createElement("input");
+        box.type = "checkbox"; box.checked = !state.excluded.has(it.key);
+        box.setAttribute("aria-label", `Apply ${it.key}`);
+        box.addEventListener("change", () => {
+          box.checked ? state.excluded.delete(it.key) : state.excluded.add(it.key);
+          tr.classList.toggle("excluded", !box.checked);
+          updateFooter();
+        });
+        cb.appendChild(box);
+      }
+      const k = document.createElement("td"); k.className = "key"; k.textContent = it.key;
+      const cur = document.createElement("td"); cur.className = "val old" + (it.status === "update" ? " changed" : "");
+      cur.dir = "auto"; cur.textContent = it.status === "add" ? "—" : it.status === "missing" ? "" : it.current;
+      const nv = document.createElement("td"); nv.className = "val"; nv.dir = "auto"; nv.textContent = it.value;
+      const st = document.createElement("td");
+      st.innerHTML = `<span class="badge ${it.status}">${LABEL[it.status]}</span>`;
+      tr.append(cb, k, cur, nv, st);
+      frag.appendChild(tr);
+    });
+    tbody.appendChild(frag);
+  }
+
+  function updateFooter() {
+    const n = state.items.filter(willApply).length;
+    const btn = $("download");
+    btn.disabled = n === 0;
+    btn.textContent = n ? `Download ${state.json.name} (${n.toLocaleString()} change${n === 1 ? "" : "s"})` : "Download JSON";
+    const skipped = state.items.filter((it) => (it.status === "update" || it.status === "add") && state.excluded.has(it.key)).length;
+    $("note").textContent = n
+      ? `Updates “${state.lang}” for ${n.toLocaleString()} key${n === 1 ? "" : "s"}${skipped ? `, ${skipped} unticked` : ""}. Everything else stays as it was.`
+      : "Nothing to apply yet.";
+  }
+
+  function refresh() {
+    const ready1 = !!(state.json && state.sheet);
+    $("t1").classList.toggle("done", ready1);
+    $("step2").setAttribute("aria-disabled", String(!state.sheet));
+    const ready2 = ready1 && state.lang.trim() && state.colors.size > 0;
+    $("t2").classList.toggle("done", !!ready2);
+    $("step3").setAttribute("aria-disabled", String(!ready2));
+
+    const warn = $("warn");
+    warn.hidden = true;
+    if (!ready2) {
+      state.items = [];
+      ["nUpdate", "nAdd", "nSame", "nMissing"].forEach((id) => { $(id).textContent = "0"; });
+      $("rows").innerHTML = "";
+      $("download").disabled = true;
+      $("note").textContent = !ready1 ? "Upload both files to start." : !state.lang.trim() ? "Enter the JSON language code." : "Pick at least one highlight colour.";
+      return;
+    }
+    buildItems();
+    const count = (s) => state.items.filter((it) => it.status === s).length;
+    $("nUpdate").textContent = count("update").toLocaleString();
+    $("nAdd").textContent = count("add").toLocaleString();
+    $("nSame").textContent = count("same").toLocaleString();
+    $("nMissing").textContent = count("missing").toLocaleString();
+
+    const langs = $("langList").querySelectorAll("option");
+    const known = [...langs].some((o) => o.value === state.lang);
+    if (!known && langs.length) {
+      warn.hidden = false;
+      warn.textContent = `“${state.lang}” isn't a language in the JSON yet, so every matched key would get it added. Check the code if that's not intended.`;
+    }
+    renderTable();
+    updateFooter();
+  }
+
+  // ---------- download ----------
+  function download() {
+    const data = structuredClone(state.json.data);
+    state.items.filter(willApply).forEach((it) => { data[it.key][state.lang] = it.value; });
+    const { newline, indent, trailing, bom, name } = state.json;
+    let text = JSON.stringify(data, null, indent);
+    if (newline !== "\n") text = text.replace(/\n/g, newline);
+    if (trailing) text += newline;
+    if (bom) text = "﻿" + text;
+    const url = URL.createObjectURL(new Blob([text], { type: "application/json" }));
+    const a = Object.assign(document.createElement("a"), { href: url, download: name });
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  // ---------- wiring ----------
+  setupDrop("dropJson", "fileJson", loadJson);
+  setupDrop("dropXlsx", "fileXlsx", loadXlsx);
+  $("column").addEventListener("change", (e) => { selectColumn(e.target.value, false); state.excluded.clear(); refresh(); });
+  $("lang").addEventListener("input", (e) => { state.lang = e.target.value.trim(); state.excluded.clear(); refresh(); });
+  $("search").addEventListener("input", (e) => { state.search = e.target.value; renderTable(); });
+  document.querySelectorAll(".stat").forEach((b) => b.addEventListener("click", () => {
+    state.filter = state.filter === b.dataset.filter ? null : b.dataset.filter;
+    document.querySelectorAll(".stat").forEach((x) => x.setAttribute("aria-pressed", String(x.dataset.filter === state.filter)));
+    $("clearFilter").hidden = !state.filter;
+    renderTable();
+  }));
+  $("clearFilter").addEventListener("click", () => {
+    state.filter = null; $("clearFilter").hidden = true;
+    document.querySelectorAll(".stat").forEach((x) => x.setAttribute("aria-pressed", "false"));
+    renderTable();
+  });
+  $("selAll").addEventListener("click", () => { state.excluded.clear(); renderTable(); updateFooter(); });
+  $("selNone").addEventListener("click", () => {
+    state.items.forEach((it) => { if (it.status === "update" || it.status === "add") state.excluded.add(it.key); });
+    renderTable(); updateFooter();
+  });
+  $("download").addEventListener("click", download);
+
+  if (!window.ExcelJS) {
+    showFile("dropXlsx", "infoXlsx", "The Excel reader couldn't load — check the internet connection and reload.", true);
+  }
+  refresh();
+})();
+</script>
+</body>
+</html>
