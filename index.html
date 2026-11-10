@@ -157,7 +157,7 @@
       <div class="drop" id="dropXlsx">
         <input type="file" id="fileXlsx" accept=".xlsx" aria-label="Reviewed Excel file">
         <div class="drop-label">Reviewed Excel (.xlsx)</div>
-        <div class="drop-hint">Row 1: <code>Key</code> plus a column per language. Corrected cells are highlighted.</div>
+        <div class="drop-hint">Row 1: <code>Key</code> plus a column per language (names like <code>Lao</code> or codes like <code>lo</code>). Corrected cells are highlighted.</div>
         <div class="drop-file" id="infoXlsx"></div>
       </div>
     </div>
@@ -226,6 +226,8 @@
     sq: "Albanian", es: "Spanish", lo: "Lao", pl: "Polish",
   };
   const NAME_TO_CODE = Object.fromEntries(Object.entries(LANG_NAMES).map(([c, n]) => [n, c]));
+  // Headers that are already language codes: "lo", "pt_BR", "sr_cyrl", "zh-Hant".
+  const LANG_CODE_RE = /^[a-z]{2,3}([_-][A-Za-z]{2,4})?$/;
   // Default Office theme colours (theme index → RGB), to draw a swatch for theme fills.
   const THEME = ["FFFFFF", "000000", "E7E6E6", "44546A", "4472C4", "ED7D31", "A5A5A5", "FFC000", "5B9BD5", "70AD47"];
   // Legacy indexed palette entries that are commonly used for highlights.
@@ -315,12 +317,15 @@
         const h = cellText(header.getCell(c).value).trim();
         const code = cellText(codes.getCell(c).value).trim();
         if (/^\(.+\)$/.test(code)) hasCodeRow = true;
-        if (h === "Key") { keyCol = c; continue; }
+        if (h.toLowerCase() === "key") { keyCol = c; continue; }
         if (!h) continue;
+        // Code from row 2 "(lo)", else from a display name ("Lao"), else the header itself
+        // when it already looks like a code ("lo", "sr_Latn").
         const fromRow2 = /^\((.+)\)$/.exec(code);
-        columns.push({ col: c, header: h, code: fromRow2 ? fromRow2[1] : NAME_TO_CODE[h] || "" });
+        const code2 = fromRow2 ? fromRow2[1] : NAME_TO_CODE[h] || (LANG_CODE_RE.test(h) ? h : "");
+        columns.push({ col: c, header: h, code: code2 });
       }
-      if (!keyCol) throw new Error("No 'Key' column in row 1.");
+      if (!keyCol) throw new Error("No 'Key' column in row 1 (any letter case).");
       if (!columns.length) throw new Error("No language columns found next to 'Key'.");
       state.sheet = { name: file.name, ws, keyCol, firstRow: hasCodeRow ? 3 : 2, columns };
 

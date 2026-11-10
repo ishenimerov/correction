@@ -49,10 +49,11 @@ def find_columns(ws, lang: str, column: str | None) -> tuple[int, int, int]:
     """Return (key_col, value_col, first_data_row) as 0-based column indexes."""
     headers = [cell.value for cell in ws[1]]
     codes = [cell.value for cell in ws[2]]
-    if "Key" not in headers:
+    lowered = [h.strip().lower() if isinstance(h, str) else h for h in headers]
+    if "key" not in lowered:
         print("❌ Error: no 'Key' column in row 1 of the Excel file.")
         sys.exit(1)
-    key_col = headers.index("Key")
+    key_col = lowered.index("key")
     has_code_row = any(isinstance(c, str) and c.startswith("(") for c in codes)
 
     if column:
